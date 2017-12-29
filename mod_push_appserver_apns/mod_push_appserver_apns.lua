@@ -210,8 +210,8 @@ local function apns_handler(event)
 
 	-- get status
 	local error_frame, err = conn:receive(6);
-	if err == "timeout" then return false; end		-- no error happened
-	if err == "wantread" then return false; end		-- no error happened nothing should come back
+	--if err == "timeout" then return false; end		-- no error happened
+	if tostring(err) == "wantread" then return false; end		-- no error happened nothing should come back
 	if err then
 		module:log("error", "Could not receive data from APNS socket: %s", tostring(err));
 		return "Error communicating with APNS (receive)";
@@ -233,7 +233,7 @@ local function query_feedback_service()
 	repeat
 		local feedback, err = conn:receive(6);
 		if err == "timeout" then break; end		-- no error happened (no data left)
-		if err == "closed" then
+		if tostring(err) == "closed" then
 			module:log("info", "No more APNS errors on feedback service");
 			break;
 		end
