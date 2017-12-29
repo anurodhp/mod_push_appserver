@@ -22,7 +22,7 @@ module:depends("push_appserver");
 local apns_cert = module:get_option_string("push_appserver_apns_cert", nil);					--push certificate (no default)
 local apns_key = module:get_option_string("push_appserver_apns_key", nil);						--push certificate key (no default)
 local capath = module:get_option_string("push_appserver_apns_capath", "/etc/ssl/certs");		--ca path on debian systems
-local ciphers = module:get_option_string("push_appserver_apns_ciphers", 
+local ciphers = module:get_option_string("push_appserver_apns_ciphers",
 	"ECDHE-RSA-AES256-GCM-SHA384:"..
 	"ECDHE-ECDSA-AES256-GCM-SHA384:"..
 	"ECDHE-RSA-AES128-GCM-SHA256:"..
@@ -156,24 +156,24 @@ local function init_connection(conn, host, port, timeout)
 		},
 	}
 	local success, err;
-	
+
 	if conn then conn:settimeout(0); success, err = conn:receive(0); conn:settimeout(timeout); end
 	if conn and err == "timeout" then module:log("debug", "already connected to apns: %s", tostring(err)); return conn; end		-- already connected
-	
+
 	-- init connection
 	module:log("debug", "connecting to %s port %d", host, port);
 	conn, err = socket.tcp();
 	if not conn then module:log("error", "Could not create APNS socket: %s", tostring(err)); return nil; end
 	success, err = conn:connect(host, port);
 	if not success then module:log("error", "Could not connect APNS socket: %s", tostring(err)); return nil; end
-	
+
 	-- init tls and timeouts
 	conn, err = ssl.wrap(conn, params);
 	if not conn then module:log("error", "Could not tls-wrap APNS socket: %s", tostring(err)); return nil; end
 	success, err = conn:dohandshake();
 	if not success then module:log("error", "Could not negotiate TLS encryption with APNS: %s", tostring(err)); return nil; end
 	conn:settimeout(timeout);
-	
+
 	module:log("debug", "connection established successfully");
 	return conn;
 end
@@ -188,7 +188,7 @@ end
 -- handlers
 local function apns_handler(event)
 	local settings = event.settings;
-	
+
 	-- prepare data to send (using latest binary format, not the legacy binary format or the new http/2 format)
 	local payload;
 	if push_priority == "high" then
@@ -197,20 +197,21 @@ local function apns_handler(event)
 		payload = '{"aps":{"content-available":1}}';
 	end
 	local frame, id = create_frame(settings["token"], payload, push_ttl, push_priority);
-	
+
 	conn = init_connection(conn, push_host, push_port);
 	if not conn then return "Error connecting to APNS"; end				-- error occured
-	
+
 	-- send frame
 	success, err = conn:send(frame);
 	if success ~= string.len(frame) then
 		module:log("error", "Could not send data to APNS socket: %s", tostring(err));
 		return "Error communicating with APNS (send)";
 	end
-	
+
 	-- get status
 	local error_frame, err = conn:receive(6);
 	if err == "timeout" then return false; end		-- no error happened
+	if err == "wantread" then return false; end		-- no error happened nothing should come back
 	if err then
 		module:log("error", "Could not receive data from APNS socket: %s", tostring(err));
 		return "Error communicating with APNS (receive)";
@@ -228,7 +229,7 @@ local function query_feedback_service()
 	if not conn then	-- error occured
 		return feedback_request_interval;		-- run timer again
 	end
-	
+
 	repeat
 		local feedback, err = conn:receive(6);
 		if err == "timeout" then break; end		-- no error happened (no data left)
@@ -239,7 +240,7 @@ local function query_feedback_service()
 		end
 		local timestamp = bin2long(string.sub(feedback, 1, 4));
 		local token_length = bin2short(string.sub(feedback, 5, 6));
-		
+
 		feedback, err = conn:receive(token_length);
 		if err then		-- timeout is also an error here, since the frame is incomplete in this case
 			module:log("error", "Could not receive data from APNS feedback socket (receive 2): %s", tostring(err));
@@ -248,7 +249,7 @@ local function query_feedback_service()
 		end
 		local token = bin2hex(string.sub(feedback, 1, token_length));
 		module:log("info", "Got feedback service entry for token '%s' timestamped with '%s", token, datetime.datetime(timestamp));
-		
+
 		if not module:trigger("unregister-push-token", {token = token, type = "apns", timestamp = timestamp}) then
 			module:log("warn", "Could not unregister push token");
 		end
