@@ -176,7 +176,7 @@ local function init_connection(conn, host, port, timeout)
 
 	module:log("debug", "connection established successfully");
 	return conn;
-end
+endª·
 local function close_connection(conn)
 	if conn then conn:close(); end
 	return nil;
@@ -233,6 +233,11 @@ local function query_feedback_service()
 	repeat
 		local feedback, err = conn:receive(6);
 		if err == "timeout" then break; end		-- no error happened (no data left)
+		if err == "closed" then
+			module:log("info", "No more APNS errors on feedback service");
+			break;
+		end
+
 		if err then
 			module:log("error", "Could not receive data from APNS feedback socket (receive 1): %s", tostring(err));
 			close_connection(conn);
