@@ -176,7 +176,7 @@ local function init_connection(conn, host, port, timeout)
 
 	module:log("debug", "connection established successfully");
 	return conn;
-endª·
+	end
 local function close_connection(conn)
 	if conn then conn:close(); end
 	return nil;
